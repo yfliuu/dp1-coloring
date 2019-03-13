@@ -1,19 +1,30 @@
 import networkx as nx
+from .. import lib
 
 
 class P(process):
-    def setup(neighbors:list):
-        self.responded = set()
-        self.color = None
-        print(self.neighbors)
+    def setup(neighbors:list, delta:int, q:int, color_a:int, color_b:int):
+        # ------ROM------
+        self.delta = delta
+        self.q = q
+
+        # ------RAM------
+        self.color = (color_a, color_b)
 
     def run():
-        send(('Color', self, self.color), to=neighbors)
-        await(len(self.responded) == len(self.neighbors))
-        output('Received from ' + str(self.neighbors))
+        while True:
+            send(('Color', self, self.color), to=neighbors)
+            await(len(self.responded) == len(self.neighbors))
+            if any(map(lambda x: x[1] == self.color[1], self.responded)):
+                # Conflict
+                self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
+            else:
+                # Finalize
+                output('My color: ' + str(self.color))
+                break
 
     def receive(msg=('Color', id, color), from_=src):
-        self.responded.add(src)
+        self.responded.add(color)
 
 
 def main():
@@ -25,9 +36,11 @@ def main():
     rev_mapping = {id: p for id, p in enumerate(ps)}
 
     G = nx.random_geometric_graph(n, 10)
+    delta = max([d for _, d in G.degree])
+    print(delta)
+
     for id, adj in G.adjacency():
         nbs_id = list(adj.keys())
         nbs_rev = [rev_mapping[i] for i in nbs_id]
-        # print(nbs_rev)
-        setup({rev_mapping[id]}, (nbs_rev,))
+        setup({rev_mapping[id]}, (nbs_rev, delta, lib.choose_prime(delta), COLOR_A, COLOR_B))
     start(ps)
