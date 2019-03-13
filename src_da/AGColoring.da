@@ -1,0 +1,22 @@
+from .. import vis
+
+
+class P(process):
+    def setup():
+        self.neighbors = []
+        self.color = None
+
+    def run():
+        send(('Color', self, self.color), to=neighbors)
+        await(len(received) == len(neighbors))
+        output('Received from {}' %neighbors)
+
+
+def main():
+    config(channel="fifo")
+    n = 10
+    ps = new(P, num=n)
+    G = vis.gen_random_graph(n)
+    for p, adj in G.adjancency():
+        setup({p}, (list(adj.keys()),))
+    start(ps)
