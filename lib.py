@@ -18,3 +18,8 @@ def is_prime(n):
         if i % n == 0:
             return True
     return False
+
+
+# Trivially coloring all nodes with a different color.
+def trivial_coloring(G):
+    return {i: i for i in range(len(G.nodes()))}

@@ -1,5 +1,6 @@
 import networkx as nx
-from .. import lib
+import lib
+import vis
 
 
 class P(process):
@@ -10,6 +11,7 @@ class P(process):
 
         # ------RAM------
         self.color = (color_a, color_b)
+        self.responded = set()
 
     def run():
         while True:
@@ -35,12 +37,14 @@ def main():
     # id_mapping = {p: id for id, p in enumerate(ps)}
     rev_mapping = {id: p for id, p in enumerate(ps)}
 
-    G = nx.random_geometric_graph(n, 10)
+
+    G = nx.random_geometric_graph(n, 0.125)
+    # coloring = lib.trivial_coloring(G)
     delta = max([d for _, d in G.degree])
-    print(delta)
+    print('Maximum degree: ' + str(delta))
 
     for id, adj in G.adjacency():
         nbs_id = list(adj.keys())
         nbs_rev = [rev_mapping[i] for i in nbs_id]
-        setup({rev_mapping[id]}, (nbs_rev, delta, lib.choose_prime(delta), COLOR_A, COLOR_B))
+        setup({rev_mapping[id]}, (nbs_rev, delta, lib.choose_prime(delta), 0, id))
     start(ps)
