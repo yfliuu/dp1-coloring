@@ -1,50 +1,63 @@
 import networkx as nx
 import lib
 import vis
+import math
 
 
 class P(process):
-    def setup(neighbors:list, delta:int, q:int, color_a:int, color_b:int):
+    def setup(neighbors:list, idmapping:list, n:int, nid:int, delta:int, q:int, color:int):
         # ------ROM------
         self.delta = delta
         self.q = q
+        self.counter = 0
+        self.nid = nid # Integer id
+        self.idmapping = idmapping
 
         # ------RAM------
-        self.color = (color_a, color_b)
-        self.responded = set()
+        self.color = (math.floor(color / self.q), color % self.q)
+        self.responded = []
+        self.term_response = set()
 
     def run():
         while True:
-            send(('Color', self, self.color), to=neighbors)
+            send(('Color', self.color), to=neighbors)
+            # print('d{} += {}'.format(self.nid, [self.idmapping[x] for x in self.neighbors]))
             await(len(self.responded) == len(self.neighbors))
+            # await(received(('Color', color), from_=neighbors))
+
             if any(map(lambda x: x[1] == self.color[1], self.responded)):
                 # Conflict
                 self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
+                self.responded.clear()
             else:
                 # Finalize
+                self.color = (0, self.color[1])
                 output('My color: ' + str(self.color))
-                break
+                await(False)
+                # break
 
-    def receive(msg=('Color', id, color), from_=src):
-        self.responded.add(color)
+        output('exit')
 
+    def receive(msg=('Color', color), from_=src):
+        # print('d{}.remove({})'.format(self.nid, self.idmapping[src]))
+        self.responded.append(color)
 
 def main():
-    config(channel="fifo")
-    n = 10
+    config(channel="reliable")
+    n = 3
     ps = new(P, num=n)
 
-    # id_mapping = {p: id for id, p in enumerate(ps)}
+    id_mapping = {p: id for id, p in enumerate(ps)}
     rev_mapping = {id: p for id, p in enumerate(ps)}
 
-
-    G = nx.random_geometric_graph(n, 0.125)
+    G = lib.gen_random_graph(n, 10)
+    vis.plot(G, node_text=rev_mapping)
     # coloring = lib.trivial_coloring(G)
-    delta = max([d for _, d in G.degree])
+    delta = lib.calc_delta(G)
     print('Maximum degree: ' + str(delta))
 
     for id, adj in G.adjacency():
         nbs_id = list(adj.keys())
         nbs_rev = [rev_mapping[i] for i in nbs_id]
-        setup({rev_mapping[id]}, (nbs_rev, delta, lib.choose_prime(delta), 0, id))
+        setup({rev_mapping[id]}, (nbs_rev, id_mapping, n, id, delta, lib.choose_prime(delta), id))
     start(ps)
