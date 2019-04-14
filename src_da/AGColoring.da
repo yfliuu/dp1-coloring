@@ -23,18 +23,18 @@ class P(process):
             send(('Color', self.color), to=neighbors)
             # print('d{} += {}'.format(self.nid, [self.idmapping[x] for x in self.neighbors]))
             await(len(self.responded) == len(self.neighbors))
-            # await(received(('Color', color), from_=neighbors))
 
             if any(map(lambda x: x[1] == self.color[1], self.responded)):
                 # Conflict
                 self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
-                self.responded.clear()
+                # self.responded.clear()
             else:
                 # Finalize
                 self.color = (0, self.color[1])
                 output('My color: ' + str(self.color))
                 await(False)
                 # break
+            self.responded.clear()
 
         output('exit')
 
@@ -44,7 +44,7 @@ class P(process):
 
 def main():
     config(channel="reliable")
-    n = 3
+    n = 9
     ps = new(P, num=n)
 
     id_mapping = {p: id for id, p in enumerate(ps)}

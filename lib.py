@@ -31,7 +31,7 @@ def calc_delta(G):
 
 
 def gen_random_graph(n=100, radius=0.125):
-    return nx.random_geometric_graph(n, radius)
+    return nx.minimum_spanning_tree(nx.random_geometric_graph(n, radius))
 
 
 def draw_graph(G):
