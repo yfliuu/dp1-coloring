@@ -9,6 +9,7 @@ from collections import defaultdict as dd
 class Status(Enum):
     AWAKENED = auto(),
     AWAITING_MSG = auto(),
+    MSG_DELIVERED = auto(),
     TASK_DONE = auto(),
     TERMINATED = auto(),
 
@@ -44,7 +45,11 @@ class AbstractProcessor:
         self.status = Status.AWAKENED
         self.init_config()
         while self.status != Status.TERMINATED:
+            # Signal message passing core that we're awaiting messages
             self.status = Status.AWAITING_MSG
+
+            # Get our package and call handler.
+            # get blocks if there's no messages.
             msg, src = self.in_buf.get(block=True)
             self.status = Status.TASK_DONE
             self.worker(msg, src)
@@ -63,6 +68,10 @@ class AbstractProcessor:
     def send(self, msg, target):
         self.out_buf.put((msg, target), True)
 
+    def send_to_neighbors(self, msg):
+        for nb in self.neighbors:
+            self.send(msg, nb)
+
     def send_to_all_except(self, msg, src):
         for nb in self.neighbors:
             if nb != src:
@@ -70,6 +79,9 @@ class AbstractProcessor:
 
     def terminate(self):
         self.status = Status.TERMINATED
+
+    def set_status(self, status):
+        self.status = status
 
     def is_alive(self):
         return self.status != Status.TERMINATED
@@ -80,11 +92,18 @@ class AbstractProcessor:
 
 
 class MessagePassingSystem:
-    def __init__(self, proc_class, n_proc, edges, is_async, max_channel_delay=0.5, verbose=True):
+    def __init__(self, proc_class, n_proc, edges, is_async, max_channel_delay=0, verbose=True):
         self.max_channel_delay = max_channel_delay
+
+        if not issubclass(proc_class, AbstractProcessor):
+            ValueError('proc_class must inherit AbstractProcessor')
+
         self.processors = [proc_class(pid=i) for i in range(n_proc)]
         self.verbose = verbose
         self.msg_buf = dd(queue.Queue)
+
+        # Synchronous rounds, used in is_async=false
+        self.round = 1
 
         self.edges = edges
         self.edge_dict = dd(set)
@@ -99,6 +118,9 @@ class MessagePassingSystem:
 
     def all_status(self, status):
         return all([p.status == status for p in self.processors])
+
+    def all_alive_status(self, status):
+        return all([p.status == status for p in self.processors if p.status != Status.TERMINATED])
 
     def clear_out_buf(self, p):
         while not p.out_buf.empty():
@@ -118,7 +140,9 @@ class MessagePassingSystem:
     def send_to_medium_buf(self, p):
         try:
             item, target = p.out_buf.get_nowait()
-            if p.is_alive() and self.processors[target].is_alive():
+            # Here we don't need to check if the sender is alive.
+            # If a sender sends a message and terminates, that message should be delivered.
+            if self.processors[target].is_alive():
                 self.msg_buf[target].put((item, p.pid))
                 p.log('msg sent %s -> %s : %s' % (p.pid, target, ' '.join([str(k) for k in item])))
         except queue.Empty:
@@ -128,19 +152,24 @@ class MessagePassingSystem:
         for target in self.msg_buf:
             try:
                 while not self.msg_buf[target].empty():
-                    pkg = self.msg_buf[target].get_nowait()
+                    pkg = self.msg_buf[target].get()
                     self.processors[target].in_buf.put(pkg)
+                    self.processors[target].set_status(Status.MSG_DELIVERED)
             except queue.Empty:
                 pass
 
     def sync_core(self):
         while not self.all_status(Status.TERMINATED):
-            # Wait for all processors to finish their computing task
-            while not self.all_status(Status.AWAITING_MSG):
+            # Wait for all alive processors to finish their computing task
+            while not self.all_alive_status(Status.AWAITING_MSG):
                 pass
 
             # Simulate the latency of channel
-            time.sleep(random.uniform(0, self.max_channel_delay))
+            if self.max_channel_delay > 0:
+                time.sleep(random.uniform(0, self.max_channel_delay))
+
+            self.log('round %s' % (self.round,))
+            self.round += 1
 
             # Push all messages ready to be sent to msg_buf
             # If we push directly to target's in_buf, then some messages that should
@@ -161,6 +190,8 @@ class MessagePassingSystem:
                 p = self.processors[i]
 
                 # Go through all messages awaiting delivery, flip a coin to decide whether to send it.
+                # If we send out immediately it won't feel like async.
+                # The message won't be lost and can have arbitrary delay.
                 buf_size = p.out_buf.qsize()
                 for _ in range(buf_size):
                     if random.choice([True, False]):
