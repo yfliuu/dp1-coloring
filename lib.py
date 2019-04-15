@@ -49,4 +49,9 @@ def draw_graph(G):
 #             color_mapping[neighbor_of_nid] = current_color
 #             colors[current_color] = True
 #             current_color += 1
-#         
+#
+
+class SimpleQueue:
+    def __init__(self):
+        self.q = []
+

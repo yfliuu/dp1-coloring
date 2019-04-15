@@ -30,7 +30,7 @@ class Processor(AbstractProcessor):
 
 
 if __name__ == '__main__':
-    n = 10
+    n = 3
 
     G = lib.gen_random_graph(n, 10)
     # vis.plot(G, node_text={id: id for id in G.nodes()})

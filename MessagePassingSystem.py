@@ -6,6 +6,7 @@ from collections import defaultdict as dd
 
 
 class Status(Enum):
+    EMBRYO = auto(),
     AWAKENED = auto(),
     AWAITING_MSG = auto(),
     MSG_DELIVERED = auto(),
@@ -27,12 +28,18 @@ class AbstractProcessor:
     def __init__(self, pid=None, is_async=True, verbose=True):
         # One in_buf/out_buf for all incoming/outgoing channels.
         # We will label the message with sender/receiver.
+
+        # TODO: DO NOT USE BLOCKING QUEUE FOR SYNCHRONIZED SYSTEM
+        # if is_async:
         self.in_buf = queue.Queue()
         self.out_buf = queue.Queue()
+        # else:
+        #     self.in_buf = []
+        #     self.out_buf = []
         self.pid = pid
         self.thread = threading.Thread(target=self.core)
         self.verbose = verbose
-        self.status = Status.TERMINATED
+        self.status = Status.EMBRYO
         self.neighbors = set()
         self.is_async = is_async
         self.inactive = False
@@ -43,6 +50,7 @@ class AbstractProcessor:
         self.children = set()
 
     def core(self):
+        self.log('Core started')
         self.status = Status.AWAKENED
         self.init_config()
         if self.is_async:
@@ -81,7 +89,6 @@ class AbstractProcessor:
         self.log('Terminated')
 
     def wake_up(self):
-        self.log('Core started')
         self.thread.start()
 
     def worker(self, msg, src):

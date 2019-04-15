@@ -19,10 +19,10 @@ class P(process):
         self.term_response = set()
 
     def run():
+        send(('Color', self.color), to=neighbors)
         while True:
-            send(('Color', self.color), to=neighbors)
-            # print('d{} += {}'.format(self.nid, [self.idmapping[x] for x in self.neighbors]))
             await(len(self.responded) == len(self.neighbors))
+            # print('d{} += {}'.format(self.nid, [self.idmapping[x] for x in self.neighbors]))
 
             if any(map(lambda x: x[1] == self.color[1], self.responded)):
                 # Conflict
@@ -32,9 +32,10 @@ class P(process):
                 # Finalize
                 self.color = (0, self.color[1])
                 output('My color: ' + str(self.color))
-                await(False)
+
                 # break
             self.responded.clear()
+            send(('Color', self.color), to=neighbors)
 
         output('exit')
 
@@ -44,7 +45,7 @@ class P(process):
 
 def main():
     config(channel="reliable")
-    n = 9
+    n = 5
     ps = new(P, num=n)
 
     id_mapping = {p: id for id, p in enumerate(ps)}
