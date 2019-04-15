@@ -1,7 +1,6 @@
 import threading, time
 import queue
 import random
-import math
 from enum import Enum, auto
 from collections import defaultdict as dd
 
@@ -25,7 +24,7 @@ class MsgType(Enum):
 
 
 class AbstractProcessor:
-    def __init__(self, pid=None, verbose=True):
+    def __init__(self, pid=None, is_async=True, verbose=True):
         # One in_buf/out_buf for all incoming/outgoing channels.
         # We will label the message with sender/receiver.
         self.in_buf = queue.Queue()
@@ -35,6 +34,8 @@ class AbstractProcessor:
         self.verbose = verbose
         self.status = Status.TERMINATED
         self.neighbors = set()
+        self.is_async = is_async
+        self.inactive = False
 
         # Tree related
         self.root = None
@@ -44,15 +45,39 @@ class AbstractProcessor:
     def core(self):
         self.status = Status.AWAKENED
         self.init_config()
-        while self.status != Status.TERMINATED:
-            # Signal message passing core that we're awaiting messages
-            self.status = Status.AWAITING_MSG
+        if self.is_async:
+            while self.status != Status.TERMINATED:
+                # Signal message passing core that we're awaiting messages
+                self.status = Status.AWAITING_MSG
 
-            # Get our package and call handler.
-            # get blocks if there's no messages.
-            msg, src = self.in_buf.get(block=True)
-            self.status = Status.TASK_DONE
-            self.worker(msg, src)
+                # Get our package and call handler.
+                # get blocks if there's no messages.
+                # TODO: Inactive shutdown for asynchronous system
+                # TODO: Tests required
+                msg, src = self.in_buf.get(block=True)
+                self.status = Status.TASK_DONE
+                self.worker(msg, src)
+        else:
+            while self.status != Status.TERMINATED:
+                # Signal message passing core that we're awaiting messages
+                self.status = Status.AWAITING_MSG
+
+                # Wait for the sync core to deliver our messages
+                while self.status != Status.MSG_DELIVERED and self.is_alive():
+                    pass
+
+                # This is for inactive shutdown.
+                if not self.is_alive():
+                    break
+
+                # Get all packages received in this round and call handler.
+                msgs, srcs = [], []
+                while not self.in_buf.empty():
+                    msg, src = self.in_buf.get_nowait()
+                    msgs.append(msg)
+                    srcs.append(src)
+                self.status = Status.TASK_DONE
+                self.worker(msgs, srcs)
         self.log('Terminated')
 
     def wake_up(self):
@@ -80,6 +105,11 @@ class AbstractProcessor:
     def terminate(self):
         self.status = Status.TERMINATED
 
+    # Inactive is useful when you only forward messages.
+    # If all processors are in INACTIVE mode, system will shutdown.
+    def go_inactive(self):
+        self.inactive = True
+
     def set_status(self, status):
         self.status = status
 
@@ -92,13 +122,15 @@ class AbstractProcessor:
 
 
 class MessagePassingSystem:
-    def __init__(self, proc_class, n_proc, edges, is_async, max_channel_delay=0, verbose=True):
+    # TODO: Using Thread pool to improve performance
+    # proc_args is a dict with mapping {pid: {'property1': value1, 'property2': value2, ...}}
+    def __init__(self, proc_class, proc_args, n_proc, edges, is_async, max_channel_delay=0, verbose=True):
         self.max_channel_delay = max_channel_delay
 
         if not issubclass(proc_class, AbstractProcessor):
             ValueError('proc_class must inherit AbstractProcessor')
 
-        self.processors = [proc_class(pid=i) for i in range(n_proc)]
+        self.processors = [proc_class(pid=pid, is_async=is_async, **proc_args[pid]) for pid in range(n_proc)]
         self.verbose = verbose
         self.msg_buf = dd(queue.Queue)
 
@@ -115,6 +147,9 @@ class MessagePassingSystem:
             self.thread = threading.Thread(target=self.async_core)
         else:
             self.thread = threading.Thread(target=self.sync_core)
+
+    def all_inactive(self):
+        return all([p.inactive for p in self.processors])
 
     def all_status(self, status):
         return all([p.status == status for p in self.processors])
@@ -151,9 +186,13 @@ class MessagePassingSystem:
     def clear_msg_buf(self):
         for target in self.msg_buf:
             try:
+                delivered = False
                 while not self.msg_buf[target].empty():
                     pkg = self.msg_buf[target].get()
                     self.processors[target].in_buf.put(pkg)
+                    delivered = True
+
+                if delivered:
                     self.processors[target].set_status(Status.MSG_DELIVERED)
             except queue.Empty:
                 pass
@@ -168,8 +207,8 @@ class MessagePassingSystem:
             if self.max_channel_delay > 0:
                 time.sleep(random.uniform(0, self.max_channel_delay))
 
-            self.log('round %s' % (self.round,))
-            self.round += 1
+            # self.log('round %s' % (self.round,))
+            # self.round += 1
 
             # Push all messages ready to be sent to msg_buf
             # If we push directly to target's in_buf, then some messages that should
@@ -180,7 +219,12 @@ class MessagePassingSystem:
             # Deliver pending messages.
             self.clear_msg_buf()
 
-        self.log('All processors have terminated, message passing system shutdown')
+            # All processors is in inactive mode, system shutdown
+            if self.all_inactive():
+                for p in self.processors:
+                    p.terminate()
+
+        self.log('All processors have terminated or are in inactive state, message passing system shutdown')
 
     def async_core(self):
         while not self.all_status(Status.TERMINATED):
