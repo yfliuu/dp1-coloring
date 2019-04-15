@@ -207,8 +207,8 @@ class MessagePassingSystem:
             if self.max_channel_delay > 0:
                 time.sleep(random.uniform(0, self.max_channel_delay))
 
-            # self.log('round %s' % (self.round,))
-            # self.round += 1
+            self.log('round %s' % (self.round,))
+            self.round += 1
 
             # Push all messages ready to be sent to msg_buf
             # If we push directly to target's in_buf, then some messages that should
