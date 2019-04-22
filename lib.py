@@ -21,6 +21,14 @@ def is_prime(n):
     return True
 
 
+def list_group_by(pred, lst):
+    yes, no = [], []
+    for item in lst:
+        if pred(item): yes.append(item)
+        else: no.append(item)
+    return yes, no
+
+
 # Trivially coloring all nodes with a different color.
 def trivial_coloring(G):
     return {i: i for i in range(len(G.nodes()))}

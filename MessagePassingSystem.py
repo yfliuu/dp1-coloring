@@ -30,12 +30,8 @@ class AbstractProcessor:
         # We will label the message with sender/receiver.
 
         # TODO: DO NOT USE BLOCKING QUEUE FOR SYNCHRONIZED SYSTEM
-        # if is_async:
         self.in_buf = queue.Queue()
         self.out_buf = queue.Queue()
-        # else:
-        #     self.in_buf = []
-        #     self.out_buf = []
         self.pid = pid
         self.thread = threading.Thread(target=self.core)
         self.verbose = verbose
