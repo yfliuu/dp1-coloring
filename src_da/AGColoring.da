@@ -20,10 +20,10 @@ class P(process):
         self.responded = []
 
     def run():
-        send(('PAYLOAD', self.color, 0), to=neighbors)
+        send((0, self.color, 0), to=neighbors)
         for i in range(self.q):
-            await(len(self.responded) == len(self.neighbors))
-            msgs = self.responded
+            await(len(list(filter(lambda x: x[0] == i, self.responded))) == len(self.neighbors))
+            msgs = list(filter(lambda x: x[0] == i, self.responded))
             if self.stage == 0:
                 # Messages for first stage AGColoring
                 if any(map(lambda x: x[1][1] == self.color[1], msgs)):
@@ -34,8 +34,8 @@ class P(process):
                     self.stage = 1
                     self.reduced_color = self.color[1]
 
-                self.responded.clear()
-                send(('PAYLOAD', self.color, 0), to=neighbors)
+                self.responded = list(filter(lambda x: x[0] > i, self.responded))
+                send((i + 1, self.color, 0), to=neighbors)
             elif self.stage == 1:
                 # We'll still receive all stage 0 messages.
                 # First respond to those still in stage 0.
@@ -43,8 +43,8 @@ class P(process):
                 if unfinished:
                     # Some of neighbors are still in stage 0.
                     # Wait for an extra round by sending stage 0 message
-                    self.responded.clear()
-                    send(('PAYLOAD', self.color, 0), to=neighbors)
+                    self.responded = list(filter(lambda x: x[0] > i, self.responded))
+                    send((i + 1, self.color, 0), to=neighbors)
                 else:
                     # Now all of our neighbors are in stage 1.
                     if self.reduced_color < self.delta + 1:
@@ -62,13 +62,14 @@ class P(process):
                         remaining_colors = set([i for i in range(self.delta + 1)]) - set(finalized_colors)
                         self.reduced_color = min(remaining_colors)
 
-                    self.responded.clear()
-                    send(('PAYLOAD', self.reduced_color, 1), to=neighbors)
+                    self.responded = list(filter(lambda x: x[0] > i, self.responded))
+                    send((i + 1, self.reduced_color, 1), to=neighbors)
 
+        await(len(list(filter(lambda x: x[0] == self.q, self.responded))) == len(self.neighbors))
         output('exit')
 
-    def receive(msg=('PAYLOAD', color, stage), from_=src):
-        self.responded.append(('PAYLOAD', color, stage))
+    def receive(msg=(round, color, stage), from_=src):
+        self.responded.append((round, color, stage))
 
 def main():
     config(channel="reliable")
