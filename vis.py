@@ -1,6 +1,7 @@
 import plotly
 import plotly.graph_objs as go
 import lib
+import random
 
 
 def edge_trace(G):
@@ -22,13 +23,18 @@ def node_trace(G, color_mapping, node_text):
     xs, ys = [], []
     colors = []
     hover_text = []
+    integer2color = {i: 'rgb(%s,%s,%s)' % values
+                     for i, values in enumerate([(
+                        random.randint(0, 255),
+                        random.randint(0, 255),
+                        random.randint(0, 255)) for _ in range(len(color_mapping) * 2)])}
     for node, adjacencies in enumerate(G.adjacency()):
         x, y = G.node[node]['pos']
         xs.append(x)
         ys.append(y)
 
         node_color = color_mapping[node]
-        colors.append(node_color)
+        colors.append(integer2color[node_color])
         hover_text.append(node_text[node])
 
     return go.Scatter(x=xs, y=ys, text=hover_text, 

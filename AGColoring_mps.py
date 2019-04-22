@@ -87,8 +87,8 @@ if __name__ == '__main__':
                                max_channel_delay=0)
     mps.start()
     mps.wait_for_all()
-    text = "Maximum degree: %s\nNumber of Colors: %s" % (delta,
-                                                         len(set([x[0] for x in mps.global_shared_memory.values()])))
+    final_color_mapping = {i: x[0] for i, x in mps.global_shared_memory.items()}
+    text = "Maximum degree: %s\nNumber of Colors: %s" % (delta, len(set(final_color_mapping.values())))
     node_text = {id: 'PID: %s, original color %s, final color: %s'
                      % (id, color_mapping[id], mps.global_shared_memory[id][0]) for id in G.nodes()}
-    vis.plot(G, node_text=node_text, text=text)
+    vis.plot(G, color_mapping=final_color_mapping,node_text=node_text, text=text)
