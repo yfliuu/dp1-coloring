@@ -37,7 +37,7 @@ def node_trace(G, color_mapping, node_text):
         colors.append(integer2color[node_color])
         hover_text.append(node_text[node])
 
-    return go.Scatter(x=xs, y=ys, text=hover_text, 
+    return go.Scatter(x=xs, y=ys, text=hover_text,
         mode='markers', hoverinfo='text',
         marker=dict(
             # showscale=True,
@@ -58,7 +58,7 @@ def fig(G, color_mapping, **kwargs):
     layout = go.Layout(title='Graph coloring', titlefont=dict(size=16), showlegend=False,
                        hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
                        annotations=[dict(
-                           text=kwargs.pop('text'), showarrow=False,
+                           text=kwargs.pop('text', ''), showarrow=False,
                            xref="paper", yref="paper",
                            x=0.005, y=-0.002)],
                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),

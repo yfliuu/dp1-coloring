@@ -45,6 +45,10 @@ def dist2(G, edge):
     return (pos1[0] - pos2[0]) * (pos1[0] - pos2[0]) + (pos1[1] - pos2[1]) * (pos1[1] - pos2[1])
 
 
+def dist(p1, p2):
+    return (wp1[0] - wp2[0]) * (wp1[0] - wp2[0]) + (wp1[1] - wp2[1]) * (wp1[1] - wp2[1])
+
+
 def gen_random_graph(n=100):
     g = nx.random_geometric_graph(n, 10)
     attrs = {edge: {'weight': dist2(g, edge)} for edge in g.edges()}
@@ -58,6 +62,12 @@ def gen_random_graph(n=100):
                 G.add_edge(v1, v2)
     return G
 
+
+def gen_ring(n=100):
+    G = nx.random_geometric_graph(n, 0)
+    for i in range(n):
+        G.add_edge(i, (i + 1) % n, weight=1)
+    return G
 
 def draw_graph(G):
     nx.draw(G, pos=nx.spring_layout(G))

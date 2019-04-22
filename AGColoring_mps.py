@@ -15,12 +15,16 @@ class Processor(AbstractProcessor):
         # Stage == 0 means we are in the middle of AG coloring.
         # Stage == 1 means that we are doing color reduction.
         self.stage = 0
+        self.round = 0
 
     # Upon receiving PAYLOAD msg
     # If we run in sync environment, worker will receive messages
     # received in previous round
     def worker(self, msgs, srcs):
         # assert len(msgs) == len(self.neighbors)
+        #  self.round += 1
+        #  if self.round > self.q:
+            #  self.go_inactive()
         if self.stage == 0:
             # Messages for first stage AGColoring
             if any(map(lambda x: x[1][1] == self.color[1], msgs)):
@@ -43,7 +47,7 @@ class Processor(AbstractProcessor):
                 self.send_to_neighbors((MsgType.PAYLOAD, self.color, 0))
             else:
                 # Now all of our neighbors are in stage 1.
-                if self.reduced_color <= self.delta + 1:
+                if self.reduced_color < self.delta + 1:
                     # We're already in range.
                     self.log('Reduced color: ' + str(self.reduced_color))
                     self.save_result_once(self.reduced_color)
@@ -67,18 +71,19 @@ class Processor(AbstractProcessor):
 
 
 if __name__ == '__main__':
-    n = 10
+    n = 15
 
-    G = lib.gen_random_graph(n)
+    #  G = lib.gen_random_graph(n)
+    G = lib.gen_ring(n)
 
     delta = lib.calc_delta(G)
+    color_mapping = {pid: random.randrange(10 * (pid + 1), 10 * (pid + 2)) for pid in G.nodes()}
     print('Maximum degree: ' + str(delta))
 
-    color_mapping = {pid: random.randrange(10 * (pid + 1), 10 * (pid + 2)) for pid in G.nodes()}
     mps = MessagePassingSystem(proc_class=Processor,
                                proc_args={
                                    pid: {'delta': delta,
-                                         'q': lib.choose_prime(delta),
+                                         'q': lib.choose_prime(2 * delta),
                                          'color': color_mapping[pid]
                                     } for pid in G.nodes()},
                                n_proc=n,

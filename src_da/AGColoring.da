@@ -21,23 +21,7 @@ class P(process):
 
     def run():
         send(('PAYLOAD', self.color, 0), to=neighbors)
-        while True:
-            # await(len(self.responded) == len(self.neighbors))
-            # # print('d{} += {}'.format(self.nid, [self.idmapping[x] for x in self.neighbors]))
-            #
-            # if any(map(lambda x: x[1] == self.color[1], self.responded)):
-            #     # Conflict
-            #     self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
-            #     # self.responded.clear()
-            # else:
-            #     # Finalize
-            #     self.color = (0, self.color[1])
-            #     output('My color: ' + str(self.color))
-            #
-            #     # break
-            # self.responded.clear()
-            # send(('Color', self.color), to=neighbors)
-
+        for i in range(self.q):
             await(len(self.responded) == len(self.neighbors))
             msgs = self.responded
             if self.stage == 0:
@@ -88,14 +72,14 @@ class P(process):
 
 def main():
     config(channel="reliable")
-    n = 5
+    n = 20
     ps = new(P, num=n)
 
     id_mapping = {p: id for id, p in enumerate(ps)}
     rev_mapping = {id: p for id, p in enumerate(ps)}
 
-    G = lib.gen_random_graph(n, 10)
-    vis.plot(G, node_text=rev_mapping)
+    G = lib.gen_random_graph(n)
+    # vis.plot(G, node_text=rev_mapping)
     # coloring = lib.trivial_coloring(G)
     delta = lib.calc_delta(G)
     print('Maximum degree: ' + str(delta))
@@ -103,5 +87,6 @@ def main():
     for id, adj in G.adjacency():
         nbs_id = list(adj.keys())
         nbs_rev = [rev_mapping[i] for i in nbs_id]
-        setup({rev_mapping[id]}, (nbs_rev, id_mapping, n, id, delta, lib.choose_prime(delta), id))
+        q = lib.choose_prime(2 * delta)
+        setup({rev_mapping[id]}, (nbs_rev, id_mapping, n, id, delta, q, id))
     start(ps)
