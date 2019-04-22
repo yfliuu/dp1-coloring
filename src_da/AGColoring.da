@@ -12,36 +12,79 @@ class P(process):
         self.counter = 0
         self.nid = nid # Integer id
         self.idmapping = idmapping
+        self.stage = 0
+        self.reduced_color = None
 
         # ------RAM------
         self.color = (math.floor(color / self.q), color % self.q)
         self.responded = []
-        self.term_response = set()
 
     def run():
-        send(('Color', self.color), to=neighbors)
+        send(('PAYLOAD', self.color, 0), to=neighbors)
         while True:
+            # await(len(self.responded) == len(self.neighbors))
+            # # print('d{} += {}'.format(self.nid, [self.idmapping[x] for x in self.neighbors]))
+            #
+            # if any(map(lambda x: x[1] == self.color[1], self.responded)):
+            #     # Conflict
+            #     self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
+            #     # self.responded.clear()
+            # else:
+            #     # Finalize
+            #     self.color = (0, self.color[1])
+            #     output('My color: ' + str(self.color))
+            #
+            #     # break
+            # self.responded.clear()
+            # send(('Color', self.color), to=neighbors)
+
             await(len(self.responded) == len(self.neighbors))
-            # print('d{} += {}'.format(self.nid, [self.idmapping[x] for x in self.neighbors]))
+            msgs = self.responded
+            if self.stage == 0:
+                # Messages for first stage AGColoring
+                if any(map(lambda x: x[1][1] == self.color[1], msgs)):
+                    self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
+                else:
+                    self.color = (0, self.color[1])
+                    output('My Color: %s' % str(self.color))
+                    self.stage = 1
+                    self.reduced_color = self.color[1]
 
-            if any(map(lambda x: x[1] == self.color[1], self.responded)):
-                # Conflict
-                self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
-                # self.responded.clear()
-            else:
-                # Finalize
-                self.color = (0, self.color[1])
-                output('My color: ' + str(self.color))
+                self.responded.clear()
+                send(('PAYLOAD', self.color, 0), to=neighbors)
+            elif self.stage == 1:
+                # We'll still receive all stage 0 messages.
+                # First respond to those still in stage 0.
+                unfinished, finalized = lib.list_group_by(lambda x: x[2] == 0 and x[1][0] != 0, msgs)
+                if unfinished:
+                    # Some of neighbors are still in stage 0.
+                    # Wait for an extra round by sending stage 0 message
+                    self.responded.clear()
+                    send(('PAYLOAD', self.color, 0), to=neighbors)
+                else:
+                    # Now all of our neighbors are in stage 1.
+                    if self.reduced_color <= self.delta + 1:
+                        # We're already in range.
+                        output('Reduced color: ' + str(self.reduced_color))
+                        # self.go_inactive()
+                    else:
+                        # We need to recolor ourself (in the context of stage 1)
+                        # The initial input would be finalized stage 0 colors.
+                        # stage 0 messages would be: (PAYLOAD, color_tuple, stage_mark)
+                        # stage 1 messages would be: (PAYLOAD, color_integer, stage_mark)
+                        # if the stage mark is 0, we extract the second item of the color tuple
+                        # if the stage mark is 1, we extract only the color_integer
+                        finalized_colors = [msg[1][1] if msg[2] == 0 else msg[1] for msg in finalized]
+                        remaining_colors = set([i for i in range(self.delta + 1)]) - set(finalized_colors)
+                        self.reduced_color = min(remaining_colors)
 
-                # break
-            self.responded.clear()
-            send(('Color', self.color), to=neighbors)
+                    self.responded.clear()
+                    send(('PAYLOAD', self.reduced_color, 1), to=neighbors)
 
         output('exit')
 
-    def receive(msg=('Color', color), from_=src):
-        # print('d{}.remove({})'.format(self.nid, self.idmapping[src]))
-        self.responded.append(color)
+    def receive(msg=('PAYLOAD', color, stage), from_=src):
+        self.responded.append(('PAYLOAD', color, stage))
 
 def main():
     config(channel="reliable")
