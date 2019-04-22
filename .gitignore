@@ -111,3 +111,4 @@ src_da/*.py
 *.html
 src_da/_test.da
 *.pdf
+tmp/*

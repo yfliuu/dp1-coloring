@@ -2,6 +2,8 @@ import networkx as nx
 import lib
 import vis
 import math
+import json
+import os
 
 
 class P(process):
@@ -18,6 +20,7 @@ class P(process):
         # ------RAM------
         self.color = (math.floor(color / self.q), color % self.q)
         self.responded = []
+        self.color_history = [self.color]
 
     def run():
         send((0, self.color, 0), to=neighbors)
@@ -35,6 +38,8 @@ class P(process):
                     self.reduced_color = self.color[1]
 
                 self.responded = list(filter(lambda x: x[0] > i, self.responded))
+                self.color_history.append(self.color)
+                self.color_history.append(self.reduced_color)
                 send((i + 1, self.color, 0), to=neighbors)
             elif self.stage == 1:
                 # We'll still receive all stage 0 messages.
@@ -61,11 +66,20 @@ class P(process):
                         finalized_colors = [msg[1][1] if msg[2] == 0 else msg[1] for msg in finalized]
                         remaining_colors = set([i for i in range(self.delta + 1)]) - set(finalized_colors)
                         self.reduced_color = min(remaining_colors)
+                        self.color_history.append(self.reduced_color)
 
                     self.responded = list(filter(lambda x: x[0] > i, self.responded))
                     send((i + 1, self.reduced_color, 1), to=neighbors)
 
         await(len(list(filter(lambda x: x[0] == self.q, self.responded))) == len(self.neighbors))
+        if not os.path.exists('tmp'):
+            os.makedirs('tmp')
+        with open('tmp/rec%s.txt' % (self.id,), 'w') as out:
+            json.dump({
+                'id': self.nid,
+                'color': self.reduced_color,
+                'color_history': self.color_history
+                    }, out)
         output('exit')
 
     def receive(msg=(round, color, stage), from_=src):
