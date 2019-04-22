@@ -74,7 +74,7 @@ class P(process):
         await(len(list(filter(lambda x: x[0] == self.q, self.responded))) == len(self.neighbors))
         if not os.path.exists('tmp'):
             os.makedirs('tmp')
-        with open('tmp/rec%s.txt' % (self.id,), 'w') as out:
+        with open('tmp/rec%s.txt' % (self.nid,), 'w') as out:
             json.dump({
                 'id': self.nid,
                 'color': self.reduced_color,
