@@ -47,7 +47,7 @@ class P(process):
                     send(('PAYLOAD', self.color, 0), to=neighbors)
                 else:
                     # Now all of our neighbors are in stage 1.
-                    if self.reduced_color <= self.delta + 1:
+                    if self.reduced_color < self.delta + 1:
                         # We're already in range.
                         output('Reduced color: ' + str(self.reduced_color))
                         # self.go_inactive()
