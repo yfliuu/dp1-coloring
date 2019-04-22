@@ -24,14 +24,40 @@ class MsgType(Enum):
         return self.name
 
 
+# A simple replace for non-blocking queue
+# Order does not matter
+class SimpleQueue:
+    def __init__(self):
+        self.q = []
+
+    def put(self, item, block=True):
+        self.q.append(item)
+
+    def get(self, block=True):
+        return self.q.pop()
+
+    def get_nowait(self):
+        return self.get()
+
+    def put_nowait(self, item):
+        self.put(item)
+
+    def empty(self):
+        return len(self.q) == 0
+
+
 class AbstractProcessor:
     def __init__(self, pid=None, is_async=True, verbose=True):
         # One in_buf/out_buf for all incoming/outgoing channels.
         # We will label the message with sender/receiver.
 
-        # TODO: DO NOT USE BLOCKING QUEUE FOR SYNCHRONIZED SYSTEM
-        self.in_buf = queue.Queue()
-        self.out_buf = queue.Queue()
+        # Use blocking queue only for async systems
+        if is_async:
+            self.in_buf = queue.Queue()
+            self.out_buf = queue.Queue()
+        else:
+            self.in_buf = SimpleQueue()
+            self.out_buf = SimpleQueue()
         self.pid = pid
         self.thread = threading.Thread(target=self.core)
         self.verbose = verbose
@@ -39,6 +65,7 @@ class AbstractProcessor:
         self.neighbors = set()
         self.is_async = is_async
         self.inactive = False
+        self.result_buffer = []
 
         # Tree related
         self.root = None
@@ -123,6 +150,13 @@ class AbstractProcessor:
         if self.verbose:
             print('PID %s: %s' % (self.pid, msg))
 
+    def save_result(self, res):
+        self.result_buffer.append(res)
+
+    def save_result_once(self, res):
+        if not self.result_buffer:
+            self.result_buffer.append(res)
+
 
 class MessagePassingSystem:
     # TODO: Using Thread pool to improve performance
@@ -139,6 +173,9 @@ class MessagePassingSystem:
 
         # Synchronous rounds, used in is_async=false
         self.round = 1
+
+        # Used for processes to write their final results
+        self.global_shared_memory = {}
 
         self.edges = edges
         self.edge_dict = dd(set)
@@ -227,6 +264,10 @@ class MessagePassingSystem:
                 for p in self.processors:
                     p.terminate()
 
+        # Collect all processor's final result
+        for i in range(len(self.processors)):
+            self.global_shared_memory[i] = self.processors[i].result_buffer
+
         self.log('All processors have terminated or are in inactive state, message passing system shutdown')
 
     def async_core(self):
@@ -256,6 +297,10 @@ class MessagePassingSystem:
         for p in self.processors:
             p.wake_up()
         self.thread.start()
+
+    def wait_for_all(self):
+        for p in self.processors:
+            p.thread.join()
 
     def log(self, msg):
         if self.verbose:

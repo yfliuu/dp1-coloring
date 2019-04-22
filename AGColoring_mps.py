@@ -46,6 +46,7 @@ class Processor(AbstractProcessor):
                 if self.reduced_color <= self.delta + 1:
                     # We're already in range.
                     self.log('Reduced color: ' + str(self.reduced_color))
+                    self.save_result_once(self.reduced_color)
                     self.go_inactive()
                 else:
                     # We need to recolor ourself (in the context of stage 1)
@@ -66,20 +67,28 @@ class Processor(AbstractProcessor):
 
 
 if __name__ == '__main__':
-    n = 3
+    n = 10
 
-    G = lib.gen_random_graph(n, 10)
-    # vis.plot(G, node_text={id: id for id in G.nodes()})
+    G = lib.gen_random_graph(n)
 
     delta = lib.calc_delta(G)
     print('Maximum degree: ' + str(delta))
 
+    color_mapping = {pid: random.randrange(10 * (pid + 1), 10 * (pid + 2)) for pid in G.nodes()}
     mps = MessagePassingSystem(proc_class=Processor,
                                proc_args={
-                                   pid: {'delta': delta, 'q': lib.choose_prime(delta), 'color': pid
+                                   pid: {'delta': delta,
+                                         'q': lib.choose_prime(delta),
+                                         'color': color_mapping[pid]
                                     } for pid in G.nodes()},
                                n_proc=n,
                                edges=G.edges(),
                                is_async=False,
                                max_channel_delay=0)
     mps.start()
+    mps.wait_for_all()
+    text = "Maximum degree: %s\nNumber of Colors: %s" % (delta,
+                                                         len(set([x[0] for x in mps.global_shared_memory.values()])))
+    node_text = {id: 'PID: %s, original color %s, final color: %s'
+                     % (id, color_mapping[id], mps.global_shared_memory[id][0]) for id in G.nodes()}
+    vis.plot(G, node_text=node_text, text=text)

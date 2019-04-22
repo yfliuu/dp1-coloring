@@ -29,7 +29,7 @@ def node_trace(G, color_mapping, node_text):
 
         node_color = color_mapping[node]
         colors.append(node_color)
-        hover_text.append('Color assigned: {}, {}'.format(color_mapping[node], node_text[node]))
+        hover_text.append(node_text[node])
 
     return go.Scatter(x=xs, y=ys, text=hover_text, 
         mode='markers', hoverinfo='text',
@@ -38,7 +38,7 @@ def node_trace(G, color_mapping, node_text):
             # colorscale='YlGnBu',
             # reversescale=True,
             color=colors,
-            size=10,
+            size=20,
             # colorbar=dict(
             #     thickness=15,
             #     title='Node Connections',
@@ -48,23 +48,22 @@ def node_trace(G, color_mapping, node_text):
             line=dict(width=2)))
 
 
-def fig(G, color_mapping, node_text):
-    delta = lib.calc_delta(G)
+def fig(G, color_mapping, **kwargs):
     layout = go.Layout(title='Graph coloring', titlefont=dict(size=16), showlegend=False,
                        hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
                        annotations=[dict(
-                           text="Maximum degree: " + str(delta), showarrow=False,
+                           text=kwargs.pop('text'), showarrow=False,
                            xref="paper", yref="paper",
                            x=0.005, y=-0.002)],
                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
-    return go.Figure(data=[edge_trace(G), node_trace(G, color_mapping, node_text)], layout=layout)
+    return go.Figure(data=[edge_trace(G), node_trace(G, color_mapping, **kwargs)], layout=layout)
 
 
-def plot(G, color_mapping=None, filename='gcoloring.html', node_text={}):
+def plot(G, color_mapping=None, filename='gcoloring.html', **kwargs):
     if color_mapping is None:
         color_mapping = lib.trivial_coloring(G)
-    plotly.offline.plot(fig(G, color_mapping, node_text=node_text), filename=filename)
+    plotly.offline.plot(fig(G, color_mapping, **kwargs), filename=filename)
 
 
 if __name__ == '__main__':

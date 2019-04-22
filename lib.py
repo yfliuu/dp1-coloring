@@ -1,5 +1,6 @@
 import math
 import networkx as nx
+import random
 
 
 def choose_prime(delta):
@@ -38,8 +39,24 @@ def calc_delta(G):
     return max([d for _, d in G.degree])
 
 
-def gen_random_graph(n=100, radius=0.125):
-    return nx.minimum_spanning_tree(nx.random_geometric_graph(n, radius))
+def dist2(G, edge):
+    pos1 = G.nodes[edge[0]]['pos']
+    pos2 = G.nodes[edge[1]]['pos']
+    return (pos1[0] - pos2[0]) * (pos1[0] - pos2[0]) + (pos1[1] - pos2[1]) * (pos1[1] - pos2[1])
+
+
+def gen_random_graph(n=100):
+    g = nx.random_geometric_graph(n, 10)
+    attrs = {edge: {'weight': dist2(g, edge)} for edge in g.edges()}
+    G = nx.minimum_spanning_tree(g)
+    nx.set_edge_attributes(G, attrs)
+    for _ in range(random.randint(n, n * 2)):
+        v1 = random.randrange(0, n)
+        v2 = random.randrange(0, n)
+        if v1 != v2:
+            if not G.has_edge(v1, v2):
+                G.add_edge(v1, v2)
+    return G
 
 
 def draw_graph(G):
@@ -58,8 +75,4 @@ def draw_graph(G):
 #             colors[current_color] = True
 #             current_color += 1
 #
-
-class SimpleQueue:
-    def __init__(self):
-        self.q = []
 
