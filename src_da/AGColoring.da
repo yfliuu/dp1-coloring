@@ -1,9 +1,10 @@
-import networkx as nx
 import lib
 import vis
 import math
 import json
 import os
+import time
+import random
 
 
 class P(process):
@@ -94,9 +95,9 @@ def main():
     rev_mapping = {id: p for id, p in enumerate(ps)}
 
     G = lib.gen_random_graph(n)
-    # vis.plot(G, node_text=rev_mapping)
-    # coloring = lib.trivial_coloring(G)
+
     delta = lib.calc_delta(G)
+    color_mapping = {pid: random.randrange(10 * (pid + 1), 10 * (pid + 2)) for pid in G.nodes()}
     print('Maximum degree: ' + str(delta))
 
     for id, adj in G.adjacency():
@@ -105,3 +106,26 @@ def main():
         q = lib.choose_prime(2 * delta)
         setup({rev_mapping[id]}, (nbs_rev, id_mapping, n, id, delta, q, id))
     start(ps)
+
+    # delete old tmp
+    for f in os.listdir('tmp'):
+        os.remove('tmp/' + f)
+
+    while len(os.listdir('tmp')) < n:
+        time.sleep(0.2)
+        pass
+
+    time.sleep(0.2)
+    global_shared_memory = {}
+    for root, dirs, files in os.walk("tmp"):
+        for file in files:
+            with open(os.path.join(root, file)) as f:
+                # This object contains color, id, history, etc
+                obj = json.load(f)
+                global_shared_memory[obj['id']] = [obj['color']]
+
+    final_color_mapping = {i: x[0] for i, x in global_shared_memory.items()}
+    text = "Maximum degree: %s\nNumber of Colors: %s" % (delta, len(set(final_color_mapping.values())))
+    node_text = {id: 'PID: %s, original color %s, final color: %s'
+                     % (id, color_mapping[id], global_shared_memory[id][0]) for id in G.nodes()}
+    vis.plot(G, color_mapping=final_color_mapping, node_text=node_text, text=text)
