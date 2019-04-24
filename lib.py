@@ -70,7 +70,7 @@ def gen_ring(n=100):
     return G
 
 def gen_low_delta_graph(n=100):
-    G = nx.gnm_random_graph(n, m=n * math.floor(math.log(n)))
+    G = nx.gnm_random_graph(n, m=n)
     for node in G.nodes():
         G.nodes[node]['pos'] = [random.randint(0, 100), random.randint(0, 100)]
     return G
