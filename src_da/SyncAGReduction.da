@@ -6,7 +6,6 @@ import os
 import time
 import random
 import networkx
-import operator
 
 class P(process):
     def setup(neighbors:list, idmapping:list, n:int, nid:int, delta:int, q:int, color:tuple):
