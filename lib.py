@@ -3,9 +3,9 @@ import networkx as nx
 import random
 
 
-def choose_prime(delta):
-    # Choose the first prime number between [delta, 2*delta]
-    for n in range(delta, 2 * delta + 1):
+# Choose the first prime number between [k, 2k]
+def choose_prime(k):
+    for n in range(math.ceil(k), 2 * math.floor(k) + 1):
         if is_prime(n):
             return n
 
@@ -50,7 +50,7 @@ def dist(p1, p2):
 
 
 def gen_random_graph(n=100):
-    g = nx.random_geometric_graph(n, 10)
+    g = nx.random_geometric_graph(n, .00000001)
     attrs = {edge: {'weight': dist2(g, edge)} for edge in g.edges()}
     G = nx.minimum_spanning_tree(g)
     nx.set_edge_attributes(G, attrs)
@@ -72,6 +72,10 @@ def gen_ring(n=100):
 def draw_graph(G):
     nx.draw(G, pos=nx.spring_layout(G))
 
+def count_rounds(color_history):
+    for i, color in enumerate(color_history):
+        if color[0] == 0:
+            return i
 
 # def ksquare_coloring(G):
 #     delta = calc_delta(G)
@@ -85,4 +89,3 @@ def draw_graph(G):
 #             colors[current_color] = True
 #             current_color += 1
 #
-
