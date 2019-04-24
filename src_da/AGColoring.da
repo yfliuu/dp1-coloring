@@ -88,13 +88,14 @@ class P(process):
 
 def main():
     config(channel="reliable")
-    n = 20
+    n = 80
     ps = new(P, num=n)
 
     id_mapping = {p: id for id, p in enumerate(ps)}
     rev_mapping = {id: p for id, p in enumerate(ps)}
 
-    G = lib.gen_random_graph(n)
+    # G = lib.gen_random_graph(n)
+    G = lib.gen_ring(n)
 
     delta = lib.calc_delta(G)
     color_mapping = {pid: random.randrange(10 * (pid + 1), 10 * (pid + 2)) for pid in G.nodes()}

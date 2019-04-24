@@ -69,6 +69,12 @@ def gen_ring(n=100):
         G.add_edge(i, (i + 1) % n, weight=1)
     return G
 
+def gen_low_delta_graph(n=100):
+    G = nx.gnm_random_graph(n, m=n * math.floor(math.log(n)))
+    for node in G.nodes():
+        G.nodes[node]['pos'] = [random.randint(0, 100), random.randint(0, 100)]
+    return G
+
 def draw_graph(G):
     nx.draw(G, pos=nx.spring_layout(G))
 

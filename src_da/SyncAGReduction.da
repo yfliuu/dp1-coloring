@@ -81,13 +81,14 @@ class P(process):
 
 def main():
     config(channel="reliable")
-    n = 10
+    n = 20 
     ps = new(P, num=n)
 
     id_mapping = {p: id for id, p in enumerate(ps)}
     rev_mapping = {id: p for id, p in enumerate(ps)}
 
-    G = lib.gen_random_graph(n)
+    # G = lib.gen_random_graph(n)
+    G = lib.gen_low_delta_graph(n)
     # G = networkx.gnm_random_graph(n, math.floor(n*math.sqrt(n)))
 
     delta = lib.calc_delta(G)
