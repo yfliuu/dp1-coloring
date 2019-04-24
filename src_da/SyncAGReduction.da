@@ -6,6 +6,7 @@ import os
 import time
 import random
 import networkx
+import operator
 
 class P(process):
     def setup(neighbors:list, idmapping:list, n:int, nid:int, delta:int, q:int, color:tuple):
@@ -23,25 +24,25 @@ class P(process):
         self.color_history = [self.color]
 
     def run():
-        first_stage_finalized = False
-        for i in range(0, self.n * 2):
+        firse_stage_finalized = False
+        for i in range(0, self.q):
             send((i, self.color, 0), to=neighbors)
             await(len(list(filter(lambda x: x[0] == i and x[2] == 0, self.responded))) == len(self.neighbors))
             msgs = list(filter(lambda x: x[0] == i, self.responded))
             if any(map(lambda x: x[1][1] == self.color[1], msgs)):
-                if not first_stage_finalized:
+                if not firse_stage_finalized:
                     self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
                     output('Round %d: Conflict! New Color: %s' % (i, str(self.color)))
 
             else:
                 self.color = (0, self.color[1])
-                if not first_stage_finalized:
+                if not firse_stage_finalized:
                     output('My Color: %s, finalized at round %d' % (str(self.color), i))
-                    first_stage_finalized = True
+                    firse_stage_finalized = True
 
             self.color_history.append(self.color)
 
-        assert first_stage_finalized
+        assert firse_stage_finalized
         color_palette = set(range(self.delta + 1))
         for j in range(self.q, self.delta, -1):
             send((j, self.color, 1), to=neighbors)
@@ -82,12 +83,13 @@ class P(process):
 
 def main():
     config(channel="reliable")
-    n = 30 
+    n = 30
     ps = new(P, num=n)
 
     id_mapping = {p: id for id, p in enumerate(ps)}
     rev_mapping = {id: p for id, p in enumerate(ps)}
 
+    # delete old tmp
     try:
         for f in os.listdir('tmp'):
             os.remove('tmp/' + f)
@@ -110,13 +112,12 @@ def main():
     for id, adj in G.adjacency():
         nbs_id = list(adj.keys())
         nbs_rev = [rev_mapping[i] for i in nbs_id]
+        # color_alpha = id
         color_alpha = color_mapping[id]
         color = (math.floor(color_alpha / q), color_alpha % q)
         # print(color)
         setup(rev_mapping[id], (nbs_rev, id_mapping, n, id, delta, q, color))
     start(ps)
-
-    # delete old tmp
 
     while len(os.listdir('tmp')) < n:
         time.sleep(0.2)
@@ -135,7 +136,7 @@ def main():
 
     ag_rounds = max(rounds)
     final_color_mapping = {i: x[0] for i, x in global_shared_memory.items()}
-    text = "#vertices=%d\nq=%d\n delta=%s\n #colors=%s\n AG rounds: %d\n FR rounds: %d" % (n, q, delta, len(set(final_color_mapping.values())), ag_rounds, q - delta - 1)
+    text = "q=%d\n delta=%s\n #colors=%s\n AG rounds: %d\n FR rounds: %d" % (q, delta, len(set(final_color_mapping.values())), ag_rounds, q - delta - 1)
     node_text = {id: 'PID: %s, original color %s, final color: %s'
                      % (id, color_mapping[id], global_shared_memory[id][0]) for id in G.nodes()}
     vis.plot(G, color_mapping=final_color_mapping, node_text=node_text, text=text)
