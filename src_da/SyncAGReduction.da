@@ -1,0 +1,136 @@
+import lib
+import vis
+import math
+import json
+import os
+import time
+import random
+import networkx
+
+class P(process):
+    def setup(neighbors:list, idmapping:list, n:int, nid:int, delta:int, q:int, color:tuple):
+        # ------ROM------
+        self.delta = delta
+        self.counter = 0
+        self.nid = nid # Integer id
+        self.idmapping = idmapping
+        self.n = n
+        self.q = q
+
+        # ------RAM------
+        self.color = color
+        self.responded = []
+        self.color_history = [self.color]
+
+    def run():
+        firse_stage_finalized = False
+        for i in range(0, self.n * 2):
+            send((i, self.color, 0), to=neighbors)
+            await(len(list(filter(lambda x: x[0] == i and x[2] == 0, self.responded))) == len(self.neighbors))
+            msgs = list(filter(lambda x: x[0] == i, self.responded))
+            if any(map(lambda x: x[1][1] == self.color[1], msgs)):
+                self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
+                output('Round %d: Conflict! New Color: %s' % (i, str(self.color)))
+
+            else:
+                self.color = (0, self.color[1])
+                if not firse_stage_finalized:
+                    output('My Color: %s, finalized at round %d' % (str(self.color), i))
+                    firse_stage_finalized = True
+
+            self.color_history.append(self.color)
+
+        assert firse_stage_finalized
+        color_palette = set(range(self.delta + 1))
+        for j in range(self.q, self.delta, -1):
+            send((j, self.color, 1), to=neighbors)
+            await(len(list(filter(lambda x: x[0] == j and x[2] == 1, self.responded))) == len(self.neighbors))
+            msgs = list(filter(lambda x: x[0] == j and x[2] == 1, self.responded))
+
+            if self.color[1] == j:
+                used_colors = set([msg[1][1] for msg in msgs])
+                color_picked = min(color_palette - used_colors)
+                self.color = (0, color_picked)
+                output('Round %d: Final Color: %d' % (j, color_picked))
+            self.color_history.append(self.color)
+
+
+        send((0, self.color, 2), to=neighbors)
+        await(len(list(filter(lambda x: x[2] == 2, self.responded))) == len(self.neighbors))
+        msgs = list(filter(lambda x: x[0] == j and x[2] == 1, self.responded))
+        used_colors = set([msg[1][1] for msg in msgs])
+
+        if not os.path.exists('tmp'):
+            try:
+                os.makedirs('tmp')
+            except FileExistsError:
+                pass
+        with open('tmp/rec_%s.txt' % (self.nid,), 'w') as out:
+            json.dump({
+                'id': self.nid,
+                'color': self.color[1],
+                'color_history': self.color_history
+                    }, out)
+
+        #  Check the coloring is proper
+        assert self.color[1] not in used_colors
+        output('assertion passed. exit')
+
+    def receive(msg=(round, color, stage), from_=src):
+        self.responded.append((round, color, stage))
+
+def main():
+    config(channel="reliable")
+    n = 10
+    ps = new(P, num=n)
+
+    id_mapping = {p: id for id, p in enumerate(ps)}
+    rev_mapping = {id: p for id, p in enumerate(ps)}
+
+    G = lib.gen_random_graph(n)
+    # G = networkx.gnm_random_graph(n, math.floor(n*math.sqrt(n)))
+
+    delta = lib.calc_delta(G)
+    color_mapping = {pid: random.randrange(10 * (pid + 1), 10 * (pid + 2)) for pid in G.nodes()}
+    q = lib.choose_prime(math.sqrt(n))
+    if q <= 2 * delta:
+        q = lib.choose_prime(2 * delta)
+    print('Maximum degree: ' + str(delta) + '  q='+str(q))
+
+    for id, adj in G.adjacency():
+        nbs_id = list(adj.keys())
+        nbs_rev = [rev_mapping[i] for i in nbs_id]
+        color_alpha = color_mapping[id]
+        color = (math.floor(color_alpha / q), color_alpha % q)
+        # print(color)
+        setup(rev_mapping[id], (nbs_rev, id_mapping, n, id, delta, q, color))
+    start(ps)
+
+    # delete old tmp
+    try:
+        for f in os.listdir('tmp'):
+            os.remove('tmp/' + f)
+    except FileNotFoundError:
+        pass
+
+    while len(os.listdir('tmp')) < n:
+        time.sleep(0.2)
+        pass
+
+    time.sleep(0.2)
+    global_shared_memory = {}
+    rounds = []
+    for root, dirs, files in os.walk("tmp"):
+        for file in files:
+            with open(os.path.join(root, file)) as f:
+                # This object contains color, id, history, etc
+                obj = json.load(f)
+                global_shared_memory[obj['id']] = [obj['color']]
+                rounds.append(lib.count_rounds(obj['color_history']))
+
+    ag_rounds = max(rounds)
+    final_color_mapping = {i: x[0] for i, x in global_shared_memory.items()}
+    text = "q=%d\n delta=%s\n #colors=%s\n AG rounds: %d\n FR rounds: %d" % (q, delta, len(set(final_color_mapping.values())), ag_rounds, q - delta - 1)
+    node_text = {id: 'PID: %s, original color %s, final color: %s'
+                     % (id, color_mapping[id], global_shared_memory[id][0]) for id in G.nodes()}
+    vis.plot(G, color_mapping=final_color_mapping, node_text=node_text, text=text)

@@ -55,7 +55,7 @@ def node_trace(G, color_mapping, node_text):
 
 
 def fig(G, color_mapping, **kwargs):
-    layout = go.Layout(title='Graph coloring', titlefont=dict(size=16), showlegend=False,
+    layout = go.Layout(title='Locally-iterative Graph Coloring', titlefont=dict(size=16), showlegend=False,
                        hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
                        annotations=[dict(
                            text=kwargs.pop('text', ''), showarrow=False,
