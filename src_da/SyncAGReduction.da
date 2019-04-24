@@ -82,7 +82,7 @@ class P(process):
 
 def main():
     config(channel="reliable")
-    n = 50 
+    n = 30 
     ps = new(P, num=n)
 
     id_mapping = {p: id for id, p in enumerate(ps)}
@@ -95,11 +95,13 @@ def main():
         pass
 
     # G = lib.gen_random_graph(n)
-    G = lib.gen_low_delta_graph(n)
+    # G = lib.gen_low_delta_graph(n)
+    G = lib.gen_ring(n)
     # G = networkx.gnm_random_graph(n, math.floor(n*math.sqrt(n)))
 
     delta = lib.calc_delta(G)
-    color_mapping = {pid: random.randrange(10 * (pid + 1), 10 * (pid + 2)) for pid in G.nodes()}
+    # color_mapping = {pid: random.randrange(10 * (pid + 1), 10 * (pid + 2)) for pid in G.nodes()}
+    color_mapping = {pid: pid for pid in G.nodes()}
     q = lib.choose_prime(math.sqrt(n))
     if q <= 2 * delta:
         q = lib.choose_prime(2 * delta)
