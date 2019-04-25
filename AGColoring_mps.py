@@ -58,46 +58,6 @@ class Processor(AbstractProcessor):
                     self.save_result_once('color', self.color)
                     self.go_inactive()
 
-        # if self.stage == 0:
-        #     # Messages for first stage AGColoring
-        #     if any(map(lambda x: x[1][1] == self.color[1], msgs)):
-        #         self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
-        #     else:
-        #         self.color = (0, self.color[1])
-        #         self.log('My Color: %s' % str(self.color))
-        #         self.stage = 1
-        #         self.reduced_color = self.color[1]
-        #
-        #     self.send_to_neighbors((MsgType.PAYLOAD, self.color, 0))
-        # elif self.stage == 1:
-        #     # We'll still receive all stage 0 messages.
-        #     # First respond to those still in stage 0.
-        #     unfinished, finalized = lib.list_group_by(lambda x: x[2] == 0 and x[1][0] != 0, msgs)
-        #
-        #     if unfinished:
-        #         # Some of neighbors are still in stage 0.
-        #         # Wait for an extra round by sending stage 0 message
-        #         self.send_to_neighbors((MsgType.PAYLOAD, self.color, 0))
-        #     else:
-        #         # Now all of our neighbors are in stage 1.
-        #         if self.reduced_color < self.delta + 1:
-        #             # We're already in range.
-        #             self.log('Reduced color: ' + str(self.reduced_color))
-        #             self.save_result_once(self.reduced_color)
-        #             self.go_inactive()
-        #         else:
-        #             # We need to recolor ourself (in the context of stage 1)
-        #             # The initial input would be finalized stage 0 colors.
-        #             # stage 0 messages would be: (PAYLOAD, color_tuple, stage_mark)
-        #             # stage 1 messages would be: (PAYLOAD, color_integer, stage_mark)
-        #             # if the stage mark is 0, we extract the second item of the color tuple
-        #             # if the stage mark is 1, we extract only the color_integer
-        #             finalized_colors = [msg[1][1] if msg[2] == 0 else msg[1] for msg in finalized]
-        #             remaining_colors = set([i for i in range(self.delta + 1)]) - set(finalized_colors)
-        #             self.reduced_color = min(remaining_colors)
-        #
-        #         self.send_to_neighbors((MsgType.PAYLOAD, self.reduced_color, 1))
-
     # Upon receiving no msg
     def init_config(self):
         self.send_to_neighbors((0, self.color, 0))
