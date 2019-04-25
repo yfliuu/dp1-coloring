@@ -19,6 +19,7 @@ class MsgType(Enum):
     TERMINATION = auto(),
     ACKNOWLEDGEMENT = auto(),
     KEEP_ALIVE = auto(),
+    EMPTY = auto()
 
     def __str__(self):
         return self.name
@@ -65,7 +66,7 @@ class AbstractProcessor:
         self.neighbors = set()
         self.is_async = is_async
         self.inactive = False
-        self.result_buffer = []
+        self.result_buffer = {}
 
         # Tree related
         self.root = None
@@ -105,8 +106,9 @@ class AbstractProcessor:
                 msgs, srcs = [], []
                 while not self.in_buf.empty():
                     msg, src = self.in_buf.get_nowait()
-                    msgs.append(msg)
-                    srcs.append(src)
+                    if msg != MsgType.EMPTY:
+                        msgs.append(msg)
+                        srcs.append(src)
                 self.status = Status.TASK_DONE
                 self.worker(msgs, srcs)
         self.log('Terminated')
@@ -150,12 +152,12 @@ class AbstractProcessor:
         if self.verbose:
             print('PID %s: %s' % (self.pid, msg))
 
-    def save_result(self, res):
-        self.result_buffer.append(res)
+    def save_result(self, key, val):
+        self.result_buffer[key] = val
 
-    def save_result_once(self, res):
-        if not self.result_buffer:
-            self.result_buffer.append(res)
+    def save_result_once(self, key, val):
+        if key not in self.result_buffer:
+            self.result_buffer[key] = val
 
 
 class MessagePassingSystem:
@@ -219,23 +221,43 @@ class MessagePassingSystem:
             # If a sender sends a message and terminates, that message should be delivered.
             if self.processors[target].is_alive():
                 self.msg_buf[target].put((item, p.pid))
-                p.log('msg sent %s -> %s : %s' % (p.pid, target, ' '.join([str(k) for k in item])))
+                # p.log('msg sent %s -> %s : %s' % (p.pid, target, ' '.join([str(k) for k in item])))
         except queue.Empty:
             pass
 
     def clear_msg_buf(self):
-        for target in self.msg_buf:
-            try:
-                delivered = False
-                while not self.msg_buf[target].empty():
-                    pkg = self.msg_buf[target].get()
-                    self.processors[target].in_buf.put(pkg)
-                    delivered = True
+        for p in self.processors:
+            if p.pid in self.msg_buf:
+                # Someone have sent a message to p
+                target = p.pid
+                try:
+                    delivered = False
+                    while not self.msg_buf[target].empty():
+                        pkg = self.msg_buf[target].get()
+                        self.processors[target].in_buf.put(pkg)
+                        delivered = True
 
-                if delivered:
-                    self.processors[target].set_status(Status.MSG_DELIVERED)
-            except queue.Empty:
-                pass
+                    if delivered:
+                        self.processors[target].set_status(Status.MSG_DELIVERED)
+                except queue.Empty:
+                    pass
+            else:
+                # Nobody sent messages to p, but we have to trigger the event
+                self.processors[p.pid].in_buf.put((MsgType.EMPTY, -1))
+                self.processors[p.pid].set_status(Status.MSG_DELIVERED)
+
+        # for target in self.msg_buf:
+        #     try:
+        #         delivered = False
+        #         while not self.msg_buf[target].empty():
+        #             pkg = self.msg_buf[target].get()
+        #             self.processors[target].in_buf.put(pkg)
+        #             delivered = True
+        #
+        #         if delivered:
+        #             self.processors[target].set_status(Status.MSG_DELIVERED)
+        #     except queue.Empty:
+        #         pass
 
     def sync_core(self):
         while not self.all_status(Status.TERMINATED):
@@ -247,8 +269,8 @@ class MessagePassingSystem:
             if self.max_channel_delay > 0:
                 time.sleep(random.uniform(0, self.max_channel_delay))
 
-            self.log('round %s' % (self.round,))
-            self.round += 1
+            # self.log('round %s' % (self.round,))
+            # self.round += 1
 
             # Push all messages ready to be sent to msg_buf
             # If we push directly to target's in_buf, then some messages that should

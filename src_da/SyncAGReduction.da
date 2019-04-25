@@ -23,25 +23,25 @@ class P(process):
         self.color_history = [self.color]
 
     def run():
-        firse_stage_finalized = False
+        first_stage_finalized = False
         for i in range(0, self.q):
             send((i, self.color, 0), to=neighbors)
             await(len(list(filter(lambda x: x[0] == i and x[2] == 0, self.responded))) == len(self.neighbors))
             msgs = list(filter(lambda x: x[0] == i, self.responded))
             if any(map(lambda x: x[1][1] == self.color[1], msgs)):
-                if not firse_stage_finalized:
+                if not first_stage_finalized:
                     self.color = (self.color[0], (self.color[0] + self.color[1]) % self.q)
                     output('Round %d: Conflict! New Color: %s' % (i, str(self.color)))
 
             else:
                 self.color = (0, self.color[1])
-                if not firse_stage_finalized:
+                if not first_stage_finalized:
                     output('My Color: %s, finalized at round %d' % (str(self.color), i))
-                    firse_stage_finalized = True
+                    first_stage_finalized = True
 
             self.color_history.append(self.color)
 
-        assert firse_stage_finalized
+        assert first_stage_finalized
         color_palette = set(range(self.delta + 1))
         for j in range(self.q, self.delta, -1):
             send((j, self.color, 1), to=neighbors)
@@ -82,7 +82,7 @@ class P(process):
 
 def main():
     config(channel="reliable")
-    n = 30
+    n = 10
     ps = new(P, num=n)
 
     id_mapping = {p: id for id, p in enumerate(ps)}
@@ -95,9 +95,9 @@ def main():
     except FileNotFoundError:
         pass
 
-    # G = lib.gen_random_graph(n)
+    G = lib.gen_random_graph(n)
     # G = lib.gen_low_delta_graph(n)
-    G = lib.gen_ring(n)
+    # G = lib.gen_ring(n)
     # G = networkx.gnm_random_graph(n, math.floor(n*math.sqrt(n)))
 
     delta = lib.calc_delta(G)
@@ -132,7 +132,6 @@ def main():
                 obj = json.load(f)
                 global_shared_memory[obj['id']] = [obj['color']]
                 rounds.append(lib.count_rounds(obj['color_history']))
-
     ag_rounds = max(rounds)
     final_color_mapping = {i: x[0] for i, x in global_shared_memory.items()}
     text = "q=%d\n delta=%s\n #colors=%s\n AG rounds: %d\n FR rounds: %d" % (q, delta, len(set(final_color_mapping.values())), ag_rounds, q - delta - 1)
