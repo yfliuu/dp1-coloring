@@ -145,13 +145,19 @@ def main():
         except FileExistsError:
             pass
 
+    try:
+        for f in os.listdir('history'):
+            os.remove('history/' + f)
+    except FileNotFoundError:
+        pass
+
     i2c_mapping = {i: 'rgb(%s,%s,%s)' % values for i, values in enumerate([(
                             random.randint(0, 255),
                             random.randint(0, 255),
                             random.randint(0, 255)) for _ in range(n * 2)])}
 
     for i in range(len(global_shared_memory[0][1])):
-        history_mapping = {pid: item[1][i][1] for pid, item in global_shared_memory.items()}
+        history_mapping = {pid: item[1][i][0] * q + item[1][i][1] for pid, item in global_shared_memory.items()}
         node_text = {id: 'PID: %s, original color %s, final color: %s'
                          % (id, color_mapping[id], history_mapping[id]) for id in G.nodes()}
         vis.plot(G, auto_open=False, color_mapping=history_mapping, i2c_mapping=i2c_mapping,
