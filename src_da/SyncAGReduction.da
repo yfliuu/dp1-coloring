@@ -130,7 +130,7 @@ def main():
             with open(os.path.join(root, file)) as f:
                 # This object contains color, id, history, etc
                 obj = json.load(f)
-                global_shared_memory[obj['id']] = [obj['color']]
+                global_shared_memory[obj['id']] = [obj['color'], obj['color_history']]
                 rounds.append(lib.count_rounds(obj['color_history']))
     ag_rounds = max(rounds)
     final_color_mapping = {i: x[0] for i, x in global_shared_memory.items()}
@@ -138,3 +138,22 @@ def main():
     node_text = {id: 'PID: %s, original color %s, final color: %s'
                      % (id, color_mapping[id], global_shared_memory[id][0]) for id in G.nodes()}
     vis.plot(G, color_mapping=final_color_mapping, node_text=node_text, text=text)
+
+    if not os.path.exists('history'):
+        try:
+            os.makedirs('history')
+        except FileExistsError:
+            pass
+
+    i2c_mapping = {i: 'rgb(%s,%s,%s)' % values for i, values in enumerate([(
+                            random.randint(0, 255),
+                            random.randint(0, 255),
+                            random.randint(0, 255)) for _ in range(n * 2)])}
+
+    for i in range(len(global_shared_memory[0][1])):
+        history_mapping = {pid: item[1][i][1] for pid, item in global_shared_memory.items()}
+        node_text = {id: 'PID: %s, original color %s, final color: %s'
+                         % (id, color_mapping[id], history_mapping[id]) for id in G.nodes()}
+        vis.plot(G, auto_open=False, color_mapping=history_mapping, i2c_mapping=i2c_mapping,
+                 node_text=node_text, text='round %d' % (i,),
+                 filename='history/round_%s.html' % (i,))

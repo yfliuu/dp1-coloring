@@ -1,0 +1,235 @@
+% Comment lines start with %
+% LaTeX commands start with \
+
+\documentclass[12pt]{article}  % This is an article with font size 11-point;
+                               % you can also use 12 point,...
+
+% Packages add features
+\usepackage{times}     % font choice
+\usepackage{amsmath}   % American Mathematical Association math formatting
+\usepackage{amsthm}    % nice formatting of theorems
+\usepackage{latexsym}  % provides some more symbols
+\usepackage{fullpage}  % uses most of the page (1-inch margins)
+\usepackage{stackrel}
+\usepackage{forest}
+\usepackage{url}
+\usepackage[margin=1in]{geometry}
+\usepackage[ruled, linesnumbered, noline, noend]{algorithm2e}
+
+\setlength{\parskip}{.1in}  % increase the space between paragraphs
+
+\renewcommand{\baselinestretch}{1.1}  % increase the space between lines
+
+%% you can put more of your own commands, etc. here
+
+% Actual content starts here.
+\begin{document}
+
+\begin{section}{Implementation \& Assessment of DistAlgo as a tool}
+
+We implement two versions of our AGColoring algorithm. One in DistAlgo, one
+in a system written by ourselves (Message Passing System, MPS). 
+We'll discuss the implementation of both versions and the system we wrote in comparison with DistAlgo.
+
+\begin{subsection}{DistAlgo Assessment as a Tool}
+Writing algorithms in DistAlgo can be both exciting and frustrating. DistAlgo provides good simulation
+for asynchronous message passing environment and runs reasonably fast, it also provides functionality to split
+the nodes across different machines. But there are several things that make the development in DistAlgo
+pretty frustrating:
+
+\noindent
+\textbf{No system support for strict synchrounous message passing}\\
+DistAlgo fundamentally uses the multiprocessing model. All subprocesses (or nodes) are forked from one single
+parent, and communicate through network stack. 
+This means the job of scheduling and manipulating processes is passed down to the operating system.
+This is a natural fit to asynchronous message passing system because it IS asynchronous message passing system.
+But no inherent support for synchronous MP environment can be achieved in this model: there's no guarantees that 
+messages are received before the start of next round and no round number is available as global knowledge. 
+There's even no concept of rounds. 
+
+Fortunately it is not totally impossible. DistAlgo provides the \texttt{await} clause. Program will not progress
+beyond \texttt{await} until the predicate provided to it is true.
+To get over problem discribed above, we have to manually simulate the synchronous
+MP system by appending self calculated round numbers to messages. Only messages with the current round number
+are marked as delivered, all others are left in the buffer untouched. 
+
+This approach though, is not applicable to the time-sensitive scenario where the sending timestamp of next round should be
+strictly larger than the sending timestamp of previous round messages because sender and receiver may not be
+in the same round at the same time.
+
+Another drawback of multiprocessing model is that it is difficult to have global coordination. In some scenarios
+a processor may finish its job earlier than others but it can only wait for a signal to exit the program. In connected
+graph this is not a big problem, a termination message may be sent across the network. 
+In graph with multiple connected components things become harder, but not totally impossible. Some scenarios may
+require some global knowledge available as immutable variable to processes, but mutable to some external sources. For example
+round numbers or fault detectors(oracle). These will be very hard to implement inside DistAlgo framework.
+
+\noindent
+\textbf{Severely underdocumented}\\
+The only available documents we can find, are the DistAlgo repo README.md, a (very short) PDF document briefly
+describing the language and usage, and several example programs. Since the DistAlgo uses a standalone compiler itself, 
+we do think that at least a document on the language should be provided (for example, 
+which words are keywords in the language).
+
+\noindent
+\textbf{The number of nodes running on one machine is limited}\\
+Another downside of passing the scheduling to OS is that OS limits the number of concurrent nodes you can run.
+In our case it's about 80 to 100. When configured for more than 100 nodes, DistAlgo crashed.
+Practically this number is so small that it can only be used as a concept proof tool.
+
+In general, DistAlgo is a lightweight and reasonably good message passing simulation tool. It performs reasonably well
+as a research prototype. But it has a long way to go to be used widely as robust message passing simulation system
+or as a commercial product.
+\end{subsection}
+
+\begin{subsection}{Message Passing System (MPS)}
+The motivation for writing our new system comes from the frustration mentioned above.
+
+The MPS is a simulation of message passing system, both synchronous and asynchronous, 
+in \textbf{threading} model. This means that all concurrent nodes run in different threads in the same process, i.e.
+this is a simulation of message passing system from a shared-memory model.
+In this model, the problem of synchronization is trivially solved. The downside of threading is also obvious.
+It runs even less nodes than the multiprocessing nodes: the performance becomes unacceptibly slow 
+when running even 30 to 40 threads. But this could be greatly improved by switching to lightweight thread implementation
+such as stackless python. 
+
+\noindent
+\textbf{Design: Asynchronous}\\
+In general asynchronous MPS is designed in producer-consumer fashion. Threads communicate to each other through
+blocking queue, which blocks on get when there's no message in the queue. To manage all threads, there's a
+monitor that starts and controls the whole system, including maximum channel delay, who will crash at what time, 
+or the order of delivery. The features provided by threading model makes it convenient to implement 
+the process\footnote{in the context of algorithm. We'll mix the use of "thread" and "process" for following discussion.}
+logic in a event-driven fashion,  i.e. processes only act on message delivery. This will be discussed more later.
+Logically, Async MPS is the same as DistAlgo, excepts that it is more controllable.
+
+\noindent
+\textbf{Design: Synchronous}\\
+Synchronous MPS is designed in postman fashion. In order to achieve synchronization, messages
+are not delivered directly through process itself. The Sync MPS monitor collects all messages ready to be sent,
+and deliver all of them before the start of next round. The delivery of messages will trigger the installed message handler
+to process the messages, then processes block again for next round of incoming messages. Sync MPS monitor is also
+responsible to start and control the whole system and it can achieve the same thing as Async MPS monitor do.
+Logically, Sync MPS is the same as DistAlgo with await+self appended round numbers, excepts that the processes
+are event-driven instead of polling.
+
+\noindent
+\textbf{Event-driven vs Polling}\\
+One of the main difference in synchronous MP, besides threading model, is that our MPS systems designed the process logic to be
+event-driven. Processes only act upon message receival. Event-driven message handlers get called every time a message (or messages,
+in Sync MPS) is delivered, whereas the \texttt{run} function in DistAlgo, inside which the \texttt{await} polling is done,
+runs only once for the entire lifetime of process.
+
+In our opinion, these two approaches are equivalent in the context of message handling, i.e. for every distributed algorithm
+written in one style, you can write a equivalent one in another style. But these two have different performance characteristics.
+For example if the node receives incoming messages continuously at a very high frequency, then probably the polling is better
+because the event queue may be overloaded. We write our algorithm in both style and the polling style is shorter and
+more concise.
+
+\noindent
+\textbf{Compare with DistAlgo}\\
+Our MPS is based on a fundamentally different model from DistAlgo so it does not make sense to compare the performance directly.
+The code complexity and overall functionality is not at the same level as well. But since both tools aims at providing simulations, 
+there are several cases that one may want to avoid using DistAlgo (and probably choosing a simulation tool based on shared-memory):
+\begin{itemize}
+	\item{Time-sensitive synchronous message passing, as stated above.}
+	\item{Huge message size. Because DistAlgo provides cross machine communication, 
+	all of its communication is done using network stack instead of operating system Inter-Process Communication (IPC). 
+	So huge messages would flood the network stack and can even affect other programs running on the same machine.}
+	\item{Precise adversarial control. DistAlgo is not able to precisely control the system because of lack of a system monitor.}
+	\item{Hundreds of nodes on a single machine. The number of nodes would be limited by DistAlgo support and OS functionality.
+	In this case one may run nodes seperately, or port DistAlgo to support GPU threads.}
+\end{itemize}
+
+\noindent
+\textbf{Future improvements}\\
+Our system of course is still limited and can be further improved. Based on threading model, some of the future improvements 
+we can think of are:
+\begin{itemize}
+	\item{Using lightweight thread and thread pool to gain better performance}
+	\item{Zero-copy message passing (a message is delivered by changing its owner instead of 
+	actually copying it to and from buffer)}
+	\item{Fine-grained adversarial control}
+	\item{Polling style support}
+\end{itemize}
+\end{subsection}
+
+\begin{subsection}{AGColoring}
+The core directory structure of our algorithm is listed below.
+
+\begin{forest}
+  for tree={
+    font=\ttfamily,
+    grow'=0,
+    child anchor=west,
+    parent anchor=south,
+    anchor=west,
+    calign=first,
+    edge path={
+      \noexpand\path [draw, \forestoption{edge}]
+      (!u.south west) +(7.5pt,0) |- node[fill,inner sep=1.25pt] {} (.child anchor)\forestoption{edge label};
+    },
+    before typesetting nodes={
+      if n=1
+        {insert before={[,phantom]}}
+        {}
+    },
+    fit=band,
+    before computing xy={l=15pt},
+  }
+[root
+	[src\_da
+		[SyncAGReduction.da]
+		[AGColoring.da]
+	]
+	[AGColoring\_mps.py]
+	[MessagePassingSystem.py]
+]
+\end{forest}
+
+The \texttt{src\_da} folder contains source code written in DistAlgo, in which the core polling logic is written
+in \texttt{SyncAGReduction.da}. \texttt{AGColoring.da} is a version of direct translation from event-driven to polling
+and is deprecated. \texttt{MessagePassingSystem.py} is the implementation of our MP system and AGColoring\_mps.py is the 
+algorithm implementation using our MP system.
+
+The algorithm for AGColoring is presented in algorithm 1. The idea of the algorithm is to first do AGColoring to turn a
+proper $k$-coloring graph into $O(\Delta)$-coloring. After that perform standard color reduction to reduce the number of
+colors to $\Delta+1$.
+
+\begin{algorithm}[H]
+\textbf{Input}: A proper $k$-coloring graph $G(V, E)$, where $k=\Omega(\Delta^2)$\\
+\textbf{Output}: $G(V, E)$ with a proper ($\Delta + 1$)-coloring\\
+\textit{Initialization}\\
+$q\leftarrow$ minimum prime number in $[\sqrt{n}, 2\sqrt{n}]$;\\
+\If{$q\leq 2\Delta$}{
+	$q\leftarrow$ minimum prime number in $[\sqrt{2\Delta}, 2\sqrt{2\Delta}]$;
+}
+$c \leftarrow \langle \left \lfloor{i / q}\right \rfloor, i \texttt{ mod } q \rangle$; \texttt{// Color is represented as tuple}\\
+\BlankLine
+\textit{Additive-Group coloring}\\
+\For{round $1$ to $q$}{
+	Send $\langle c\rangle$ to neighbors;\\
+	Wait for all messages;\\
+	\If{$c$ conflicts with some neighbor}{
+		\texttt{// $c_1$ conflicts with $c_2$ if $c_1.1=c_2.1$}\\
+		$c\leftarrow  \langle c.0, (c.0 + c.1) \texttt{ mod } q \rangle$\\
+	}\Else{
+		$c\leftarrow \langle 0, c.1\rangle$; \texttt{// AGColoring finalized}
+	}
+}
+\BlankLine
+\textit{Standard color reduction}\\
+\For{$j$ from $q$ down to $\Delta$}{
+	Send $\langle c\rangle$ to neighbors;\\
+	Wait for all messages;\\
+	\If{$c.1=j$}{
+		Pick a color that was not used by neighbors in range $[1,\Delta+1]$;\\
+	}
+}
+
+\caption{Additive-Group Coloring, code for $p_i$, $1 \leq i \leq n$, polling style}
+\end{algorithm}
+\end{subsection}
+
+\end{section}
+\end{document}

@@ -14,7 +14,7 @@ def edge_trace(G):
     return go.Scatter(x=xs, y=ys, line=dict(width=0.5,color='#888'), hoverinfo='none', mode='lines')
 
 
-def node_trace(G, color_mapping, node_text):
+def node_trace(G, color_mapping, i2c_mapping, node_text):
     # color scale options
     # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
     # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
@@ -23,11 +23,14 @@ def node_trace(G, color_mapping, node_text):
     xs, ys = [], []
     colors = []
     hover_text = []
-    integer2color = {i: 'rgb(%s,%s,%s)' % values
-                     for i, values in enumerate([(
-                        random.randint(0, 255),
-                        random.randint(0, 255),
-                        random.randint(0, 255)) for _ in range(len(color_mapping) * 2)])}
+    if i2c_mapping is None:
+        integer2color = {i: 'rgb(%s,%s,%s)' % values
+                         for i, values in enumerate([(
+                            random.randint(0, 255),
+                            random.randint(0, 255),
+                            random.randint(0, 255)) for _ in range(len(color_mapping) * 2)])}
+    else:
+        integer2color = i2c_mapping
     for node, adjacencies in enumerate(G.adjacency()):
         x, y = G.node[node]['pos']
         xs.append(x)
@@ -54,7 +57,7 @@ def node_trace(G, color_mapping, node_text):
             line=dict(width=2)))
 
 
-def fig(G, color_mapping, **kwargs):
+def fig(G, color_mapping, i2c_mapping=None, **kwargs):
     layout = go.Layout(title='Locally-iterative Graph Coloring', titlefont=dict(size=16), showlegend=False,
                        hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
                        annotations=[dict(
@@ -63,13 +66,13 @@ def fig(G, color_mapping, **kwargs):
                            x=0.005, y=-0.002)],
                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
-    return go.Figure(data=[edge_trace(G), node_trace(G, color_mapping, **kwargs)], layout=layout)
+    return go.Figure(data=[edge_trace(G), node_trace(G, color_mapping, i2c_mapping, **kwargs)], layout=layout)
 
 
-def plot(G, color_mapping=None, filename='gcoloring.html', **kwargs):
+def plot(G, color_mapping=None, filename='gcoloring.html', i2c_mapping=None, auto_open=True, **kwargs):
     if color_mapping is None:
         color_mapping = lib.trivial_coloring(G)
-    plotly.offline.plot(fig(G, color_mapping, **kwargs), filename=filename)
+    plotly.offline.plot(fig(G, color_mapping, i2c_mapping, **kwargs), filename=filename, auto_open=auto_open)
 
 
 if __name__ == '__main__':

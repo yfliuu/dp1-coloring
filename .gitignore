@@ -112,3 +112,4 @@ src_da/*.py
 src_da/_test.da
 *.pdf
 tmp/*
+history/*
